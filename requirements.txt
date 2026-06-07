@@ -1,6 +1,6 @@
-tensorflow-cpu==2.15.0
-pillow==10.2.0
-python-dotenv==1.0.1
-google-genai==0.1.1
-streamlit==1.32.0
-numpy==1.26.4
+tensorflow-cpu
+pillow
+python-dotenv
+google-genai
+streamlit
+numpy
