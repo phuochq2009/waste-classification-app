@@ -136,16 +136,28 @@ with col_predict:
     option = st.radio("Chọn phương thức quét ảnh:", ("Tải ảnh lên (Upload)", "Dùng Camera trực tiếp (Live Cam)"), key="input_method")
     
     uploaded_image = None
+    is_valid_file = True  # Biến cờ để kiểm tra file có hợp lệ hay không
+    
     if option == "Tải ảnh lên (Upload)":
-        file_input = st.file_uploader("Chọn một tấm ảnh rác thải (.jpg, .jpeg, .png)", type=["jpg", "jpeg", "png"])
+        # BỎ tham số type=[...] để nút X không bị lỗi giao diện của Streamlit
+        file_input = st.file_uploader("Chọn một tấm ảnh rác thải (.jpg, .jpeg, .png)")
+        
         if file_input:
-            uploaded_image = Image.open(file_input)
+            # Tự kiểm tra đuôi file bằng Python
+            file_extension = file_input.name.split(".")[-1].lower()
+            if file_extension not in ["jpg", "jpeg", "png"]:
+                st.error(f"❌ Định dạng file .{file_extension} không được hỗ trợ!")
+                st.warning("👉 Vui lòng bấm nút (X) trên thanh file để xóa và chọn lại ảnh đúng (.jpg, .jpeg, .png).")
+                is_valid_file = False  # Đánh dấu file lỗi
+            else:
+                uploaded_image = Image.open(file_input)
     else:
         cam_input = st.camera_input("Đưa rác trước camera của bạn")
         if cam_input:
             uploaded_image = Image.open(cam_input)
             
-    if uploaded_image:
+    # Chỉ chạy AI khi có ảnh và file đó PHẢI HỢP LỆ
+    if uploaded_image and is_valid_file:
         st.image(uploaded_image, caption="Ảnh đầu vào", use_container_width=True)
         
         with st.spinner("Đang phân tích hình ảnh..."):
