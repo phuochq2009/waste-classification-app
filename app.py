@@ -104,7 +104,7 @@ def generate_text(prompt, system_instruction=None):
 
 # Định nghĩa tính cách Chuyên gia Môi trường cho Bot
 system_instruction = """
-Bạn là một chuyên gia về môi trường và phân loại rác thải tại Việt Nam. Bạn được tích hợp trong một trang web sử dụng model CNN để phân loại rác thải hữu cơ và tái chế.
+Bạn là một chuyên gia về môi trường và phân loại rác thải tại Việt Nam. Bạn được tích hợp trong một trang web sử dụng model CNN để phân loại rác thải hữu cơ và tái chế. Có tổng hợp thêm một tab cho người dùng biết được địa điểm thu gom rác đặc thù và độc hại.
 Nhiệm vụ của bạn:
 1. Giải đáp các thắc mắc của người dùng về cách phân loại rác (Hữu cơ, Tái chế, Rác độc hại, vô cơ...).
 2. Cung cấp các kiến thức, mẹo tái chế đồ dùng cũ và cập nhật quy định bảo vệ môi trường mới nhất.
@@ -119,29 +119,62 @@ Quy tắc trả lời:
 def ask_bot(question):
     return generate_text(prompt=question, system_instruction=system_instruction)
 
-def ask_gemini_vision(image):
-    """Hàm gửi ảnh cho Gemini 2.5 Flash để nhận diện vật thể và phân loại rác"""
+def ask_gemini_vision(image, cnn_label, cnn_score):
+    """Hàm gửi cả ẢNH và KẾT QUẢ CỦA CNN để Gemini chấm điểm, đính chính nếu sai"""
     if USE_MOCK or client is None:
-        return "🤖 [Chế độ thử nghiệm]: Gemini nhận thấy đây có thể là một chai nhựa hoặc hộp giấy và đề xuất bỏ vào thùng rác tái chế."
+        return (
+            "🤖 [Chế độ thử nghiệm]: Gemini đã nhận được ảnh và kết quả của CNN. "
+            "Khi có API Key thật, Gemini sẽ đóng vai trò trọng tài để nhận xét kết quả này!"
+        )
         
-    # Định nghĩa câu lệnh prompt ngắn gọn, ép Gemini trả về đúng trọng tâm
-    prompt_vision = """
-    Hãy nhìn vào bức ảnh này với tư cách là một chuyên gia phân loại rác thải. 
-    Trả lời thật ngắn gọn theo cấu trúc sau (không viết dông dài):
-    - **Vật thể nhận diện được:** [Tên món đồ vật xuất hiện trong ảnh]
-    - **Phân loại rác:** [Xếp nó vào nhóm nào: Hữu cơ / Tái chế / Rác nguy hại / Rác còn lại]
-    - **Lý do & Hướng xử lý nhanh:** [1 câu giải thích ngắn gọn tại sao xếp như vậy và xử lý thế nào]
+    prompt_referee = f"""
+    Bạn là một Chuyên gia Môi trường tối cao đóng vai trò 'Trọng tài công nghệ'. 
+    Hệ thống vừa dùng một mô hình học máy CNN để quét bức ảnh này và trả về kết quả là:
+    - Dự đoán của CNN: {cnn_label}
+    - Độ tự tin: {cnn_score:.2f}%
+
+    Nhiệm vụ của bạn:
+    1. Hãy tự nhìn vào bức ảnh này và nhận diện xem vật thể thực tế CHÍNH XÁC là gì.
+    2. ĐÁNH GIÁ kết quả của mô hình CNN (Nó đoán ĐÚNG hay SAI?). Nếu nó đoán sai, hãy nhẹ nhàng đính chính lại loại rác đúng cho người dùng.
+    3. Đưa ra hướng xử lý hoặc mẹo tái chế ngắn gọn cho món đồ này.
+
+    Hãy trình bày thật rõ ràng, mạch lạc bằng tiếng Việt, show hết thông tin ra cho người dùng thấy nhé!
     """
     
     try:
-        # Gọi API thế hệ mới truyền cả ảnh (PIL Image) và câu lệnh chữ cùng lúc
+        # Gọi API truyền cả ảnh và prompt
         response = client.models.generate_content(
             model=MODEL_NAME,
-            contents=[image, prompt_vision]
+            contents=[image, prompt_referee]
         )
-        return response.text
+        
+        # --- SỬA LỖI NONE Ở ĐÂY ---
+        # Kiểm tra xem phản hồi có text hay không, nếu thuộc tính .text bị None, ta quét sâu vào cấu trúc tầng dưới (candidates)
+        # --- BỘ LỌC THÔNG MINH KIỂM TRA BỘ LỌC AN TOÀN (SAFETY FILTERS) ---
+        if response.text:
+            return response.text
+            
+        # Kiểm tra xem có phải Google trả về kết quả rỗng do chặn nội dung nhạy cảm hay không
+        elif hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+            # Nếu prompt hoặc ảnh bị chặn ngay từ vòng gửi xe
+            return "⚠️ [BỘ LỌC AN TOÀN KÍCH HOẠT]: Hình ảnh chứa nội dung nhạy cảm, bạo lực hoặc xác động vật. Google AI Studio đã chủ động chặn đứng (Block) yêu cầu này để đảm bảo an toàn hệ thống."
+            
+        elif hasattr(response, 'candidates') and response.candidates:
+            # Nếu có ứng viên nhưng bị chặn ở tầng trả lời (Finish Reason là SAFETY)
+            finish_reason = getattr(response.candidates[0], 'finish_reason', '')
+            if finish_reason == 'SAFETY' or finish_reason == 2: # 2 thường là mã số của SAFETY trong SDK
+                return "⚠️ [BỘ LỌC AN TOÀN KÍCH HOẠT]: Nội dung hình ảnh vi phạm chính sách bạo lực/ghê rợn (Violence & Gore) của Google. Trọng tài AI từ chối phân tích vật thể này."
+            
+            try:
+                return response.candidates[0].content.parts[0].text
+            except:
+                pass
+                
+        # Nếu tất cả đều trống rỗng không rõ nguyên nhân
+        return "⚠️ [BỘ LỌC AN TOÀN KÍCH HOẠT]: Server phản hồi một cấu trúc trống. Hình ảnh này đã bị hệ thống kiểm duyệt tự động của Google chặn phân tích (Do nội dung không phù hợp hoặc nhạy cảm)."
+            
     except Exception as error:
-        return f"⚠️ Không thể kết nối với trí tuệ nhận diện của Gemini: {error}"
+        return f"⚠️ Trọng tài Gemini gặp sự cố khi nhìn ảnh: {error}"
 
 # ==========================================
 # 3. GIAO DIỆN NGƯỜI DÙNG STREAMLIT (UI)
@@ -220,14 +253,25 @@ with tab_app:
                     st.caption("💡 *Gợi ý:* Cần làm sạch và để khô trước khi tái chế.")
                 status_cnn.update(label="✅ Kết quả từ Mô hình CNN tự huấn luyện", state="complete")
             
-            # Khung 2: TÍNH NĂNG MỚI - Hiển thị kết quả nhận diện thị giác của Siêu AI Gemini
-            with st.status("✨ Siêu AI Gemini 2.5 Flash đang nhìn ảnh...", expanded=True) as status_gemini:
-                # Gọi hàm đọc ảnh đa phương thức của Gemini
-                gemini_vision_result = ask_gemini_vision(uploaded_image)
+# ---------------------------------------------------------
+            # BƯỚC 2: GỌI GEMINI LÀM TRỌNG TÀI ĐÁNH GIÁ VÀ GIẢI THÍCH
+            # ---------------------------------------------------------
+            st.markdown("#### ✨ 2. Đánh giá & Đính chính từ Siêu AI Gemini")
+            
+            with st.spinner("Trọng tài Gemini đang kiểm tra kết quả của CNN..."):
+                # Gọi hàm truyền đủ 3 tham số
+                gemini_vision_result = ask_gemini_vision(uploaded_image, label, score)
                 
-                # Hiển thị câu trả lời dạng Markdown ra màn hình gọn gàng
-                st.markdown(gemini_vision_result)
-                status_gemini.update(label="🤖 Kết quả phân tích từ Trí tuệ thị giác Gemini", state="complete")
+            # Tạo một khung viền tiêu chuẩn hiển thị trực tiếp ra màn hình (Không dùng st.status nữa)
+            with st.container(border=True):
+                # Kiểm tra xem kết quả trả về có phải là thông báo lỗi hệ thống/lỗi bộ lọc an toàn hay không
+                if "sự cố" in gemini_vision_result or "Không nhận được" in gemini_vision_result:
+                    st.error("🚫 **Hệ thống từ chối phân tích ảnh này:**")
+                    st.markdown(gemini_vision_result)
+                    st.caption("💡 *Giải thích:* Google AI có bộ lọc kiểm duyệt cực kỳ nghiêm ngặt. Nếu ảnh chứa nội dung nhạy cảm (như xác động vật, máu me, bạo lực), hệ thống API sẽ tự động chặn đứng để đảm bảo an toàn.")
+                else:
+                    # Nếu ảnh rác thông thường và Gemini chạy thành công, show toàn bộ chữ ra đây
+                    st.markdown(gemini_vision_result)
 
     # --- CỘT PHẢI: CHATBOT GEMINI MÔI TRƯỜNG ---
     with col_chat:
