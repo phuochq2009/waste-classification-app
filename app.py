@@ -119,6 +119,30 @@ Quy tắc trả lời:
 def ask_bot(question):
     return generate_text(prompt=question, system_instruction=system_instruction)
 
+def ask_gemini_vision(image):
+    """Hàm gửi ảnh cho Gemini 2.5 Flash để nhận diện vật thể và phân loại rác"""
+    if USE_MOCK or client is None:
+        return "🤖 [Chế độ thử nghiệm]: Gemini nhận thấy đây có thể là một chai nhựa hoặc hộp giấy và đề xuất bỏ vào thùng rác tái chế."
+        
+    # Định nghĩa câu lệnh prompt ngắn gọn, ép Gemini trả về đúng trọng tâm
+    prompt_vision = """
+    Hãy nhìn vào bức ảnh này với tư cách là một chuyên gia phân loại rác thải. 
+    Trả lời thật ngắn gọn theo cấu trúc sau (không viết dông dài):
+    - **Vật thể nhận diện được:** [Tên món đồ vật xuất hiện trong ảnh]
+    - **Phân loại rác:** [Xếp nó vào nhóm nào: Hữu cơ / Tái chế / Rác nguy hại / Rác còn lại]
+    - **Lý do & Hướng xử lý nhanh:** [1 câu giải thích ngắn gọn tại sao xếp như vậy và xử lý thế nào]
+    """
+    
+    try:
+        # Gọi API thế hệ mới truyền cả ảnh (PIL Image) và câu lệnh chữ cùng lúc
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=[image, prompt_vision]
+        )
+        return response.text
+    except Exception as error:
+        return f"⚠️ Không thể kết nối với trí tuệ nhận diện của Gemini: {error}"
+
 # ==========================================
 # 3. GIAO DIỆN NGƯỜI DÙNG STREAMLIT (UI)
 # ==========================================
@@ -182,15 +206,28 @@ with tab_app:
         if uploaded_image and is_valid_file:
             st.image(uploaded_image, caption="Ảnh đầu vào", use_container_width=True)
             
-            with st.spinner("Đang phân tích hình ảnh..."):
+            # --- TẠO 2 Ô KẾT QUẢ SO SÁNH ---
+            st.markdown("### 📊 Kết Quả Phân Tích Song Song")
+            
+            # Khung 1: Hiển thị kết quả của mô hình CNN tự train
+            with st.status("🧠 Mô hình CNN (Local Model) đang tính toán...", expanded=True) as status_cnn:
                 label, score = predict_waste(uploaded_image)
+                if "Organic" in label:
+                    st.success(f"**Dự đoán:** {label} \n\n**Độ tự tin:** {score:.2f}%")
+                    st.caption("💡 *Gợi ý:* Nên gom riêng làm phân bón hữu cơ.")
+                else:
+                    st.warning(f"**Dự đoán:** {label} \n\n**Độ tự tin:** {score:.2f}%")
+                    st.caption("💡 *Gợi ý:* Cần làm sạch và để khô trước khi tái chế.")
+                status_cnn.update(label="✅ Kết quả từ Mô hình CNN tự huấn luyện", state="complete")
+            
+            # Khung 2: TÍNH NĂNG MỚI - Hiển thị kết quả nhận diện thị giác của Siêu AI Gemini
+            with st.status("✨ Siêu AI Gemini 2.5 Flash đang nhìn ảnh...", expanded=True) as status_gemini:
+                # Gọi hàm đọc ảnh đa phương thức của Gemini
+                gemini_vision_result = ask_gemini_vision(uploaded_image)
                 
-            if "Organic" in label:
-                st.success(f"**Kết quả dự đoán:** {label} \n\n**Độ tự tin:** {score:.2f}%")
-                st.info("💡 **Gợi ý nhanh:** Rác hữu cơ nên được gom riêng để làm phân bón hữu cơ hoặc xử lý sinh học.")
-            else:
-                st.warning(f"**Kết quả dự đoán:** {label} \n\n**Độ tự tin:** {score:.2f}%")
-                st.info("💡 **Gợi ý nhanh:** Rác tái chế cần được làm sạch, để khô trước khi đưa đến các nhà máy tái chế.")
+                # Hiển thị câu trả lời dạng Markdown ra màn hình gọn gàng
+                st.markdown(gemini_vision_result)
+                status_gemini.update(label="🤖 Kết quả phân tích từ Trí tuệ thị giác Gemini", state="complete")
 
     # --- CỘT PHẢI: CHATBOT GEMINI MÔI TRƯỜNG ---
     with col_chat:
