@@ -232,52 +232,77 @@ with tab_locations:
     
     city = st.selectbox("Chọn khu vực của bạn:", ["TP. Hồ Chí Minh", "Hà Nội"])
     
+    # Khởi tạo trạng thái focus điểm trong Session State để điều khiển bản đồ
+    focus_key = f"selected_point_{city}"
+    if focus_key not in st.session_state:
+        st.session_state[focus_key] = None
+
+    # CẤU TRÚC DỮ LIỆU ĐÃ ĐỔI SANG ĐƠN VỊ PHƯỜNG CHUẨN (SAU SÁP NHẬP) KÈM THÔNG TIN CHI TIẾT
+    if city == "TP. Hồ Chí Minh":
+        map_data = [
+            {"lat": 10.7963, "lon": 106.7412, "name": "MM Mega Market An Phú", "ward": "Phường An Phú (Quận 2 cũ), TP. Thủ Đức", "addr": "Khu B, KĐT An Phú-An Khánh, TP. Thủ Đức, TP.HCM"},
+            {"lat": 10.7932, "lon": 106.7135, "name": "Trạm thu gom UBND Phường 22", "ward": "Phường 22, Quận Bình Thạnh", "addr": "Số 146 Nguyễn Hữu Cảnh, Quận Bình Thạnh, TP.HCM"},
+            {"lat": 10.7998, "lon": 106.6802, "name": "Văn phòng Tiếp công dân Phú Nhuận", "ward": "Phường 8, Quận Phú Nhuận", "addr": "Số 159 Nguyễn Văn Trỗi, Quận Phú Nhuận, TP.HCM"},
+            {"lat": 10.7850, "lon": 106.6821, "name": "Trung tâm Học tập Cộng đồng Trần Quang Diệu", "ward": "Phường Võ Thị Sáu (sáp nhập Q3)", "addr": "Số 122 Trần Quang Diệu, Quận 3, TP.HCM"}
+        ]
+    else:
+        map_data = [
+            {"lat": 21.0245, "lon": 105.8568, "name": "Nhà Văn hóa Phường Tràng Tiền", "ward": "Phường Tràng Tiền, Quận Hoàn Kiếm", "addr": "Số 2 Cổ Tân, Quận Hoàn Kiếm, Hà Nội"},
+            {"lat": 21.0115, "lon": 105.8192, "name": "Chi cục Bảo vệ Môi trường Hà Nội", "ward": "Phường Yên Hòa, Quận Cầu Giấy", "addr": "Số 17 Trung Yên 3, Quận Cầu Giấy, Hà Nội"},
+            {"lat": 21.0428, "lon": 105.7958, "name": "Trạm tiếp nhận UBND Phường Nghĩa Tân", "ward": "Phường Nghĩa Tân, Quận Cầu Giấy", "addr": "Số 14 Tô Hiệu, Quận Cầu Giấy, Hà Nội"},
+            {"lat": 21.0142, "lon": 105.8012, "name": "Điểm thu gom Siêu thị Big C Thăng Long", "ward": "Phường Trung Hòa, Quận Cầu Giấy", "addr": "Số 222 Trần Duy Hưng, Quận Cầu Giấy, Hà Nội"}
+        ]
+
+    # Chia giao diện thành 2 cột: Trái hiện danh sách tương tác, Phải hiện Bản đồ lớn
     col_info, col_map = st.columns([1, 1], gap="medium")
     
+    # --- CỘT TRÁI: MOVE TOÀN BỘ DANH SÁCH VÀ NÚT BẤM SANG ĐÂY ---
     with col_info:
-        if city == "TP. Hồ Chí Minh":
-            st.subheader("🏢 Các Điểm Tiếp Nhận Tại TP.HCM")
-            st.markdown("""
-            *   **Quận 1:** MM Mega Market An Phú (Khu B, KĐT An Phú-An Khánh).
-            *   **Quận 3:** Trung tâm Học tập Cộng đồng (Số 122 Trần Quang Diệu).
-            *   **Quận Bình Thạnh:** Ủy ban Nhân dân Phường 22 (Số 146 Nguyễn Hữu Cảnh).
-            *   **Quận Phú Nhuận:** Văn phòng Tiếp công dân (Số 159 Nguyễn Văn Trỗi).
-            *   *Mẹo:* Gom pin vào chai nhựa sạch trước khi mang đi nộp để đảm bảo an toàn vận chuyển.
-            """)
-        else:
-            st.subheader("🏢 Các Điểm Tiếp Nhận Tại Hà Nội")
-            st.markdown("""
-            *   **Quận Hoàn Kiếm:** Nhà Văn hóa Phường Tràng Tiền (Số 2 Cổ Tân).
-            *   **Quận Ba Đình:** Chi cục Bảo vệ Môi trường Hà Nội (Số 17 Trung Yên 3).
-            *   **Quận Cầu Giấy:** UBND Phường Nghĩa Tân (Số 14 Tô Hiệu).
-            *   **Quận Thanh Xuân:** Điểm thu gom tại Siêu thị Big C Thăng Long (Số 222 Trần Duy Hưng).
-            *   *Mẹo:* Các điểm thu gom rác điện tử thường hoạt động trong giờ hành chính các ngày trong tuần.
-            """)
-            
-    with col_map:
-        st.subheader("🗺️ Bản Đồ Điểm Thu Gom Thực Tế")
+        st.subheader(f"🏢 Danh Sách Trạm Tiếp Nhận ({city})")
+        st.caption("ℹ️ *Hệ thống đã cập nhật tên Phường theo văn bản hành chính mới nhất.*")
         
-        # 1. Định nghĩa tọa độ thật của các điểm thu gom rác điện tử/pin cũ
-        if city == "TP. Hồ Chí Minh":
-            # Tọa độ các điểm tại TP.HCM (MM Mega Market, UBND Phường 22, Phú Nhuận...)
-            map_data = [
-                {"lat": 10.7963, "lon": 106.7412, "name": "MM Mega Market An Phú"},
-                {"lat": 10.7932, "lon": 106.7135, "name": "UBND Phường 22 - Nguyễn Hữu Cảnh"},
-                {"lat": 10.7998, "lon": 106.6802, "name": "Văn phòng Tiếp công dân Phú Nhuận"},
-                {"lat": 10.7850, "lon": 106.6821, "name": "TT Học tập Cộng đồng Trần Quang Diệu"}
-            ]
-        else:
-            # Tọa độ các điểm tại Hà Nội (Tràng Tiền, Nghĩa Tân, BigC Thăng Long...)
-            map_data = [
-                {"lat": 21.0245, "lon": 105.8568, "name": "Nhà Văn hóa Phường Tràng Tiền"},
-                {"lat": 21.0142, "lon": 105.8012, "name": "Siêu thị Big C Thăng Long"},
-                {"lat": 21.0428, "lon": 105.7958, "name": "UBND Phường Nghĩa Tân"},
-                {"lat": 21.0115, "lon": 105.8192, "name": "Chi cục Bảo vệ Môi trường HN"}
-            ]
+        # Nút dùng để reset bản đồ hiển thị lại tất cả các điểm ban đầu
+        if st.button("🔄 Hiển thị lại toàn bộ các điểm", use_container_width=True):
+            st.session_state[focus_key] = None
+            st.rerun()
+
+        st.write("")
+        
+        # Chạy vòng lặp tạo danh sách hộp tương tác
+        for idx, pt in enumerate(map_data):
+            with st.container(border=True):
+                st.markdown(f"**{idx + 1}. {pt['name']}**")
+                st.markdown(f"📍 *Đơn vị:* {pt['ward']}")
+                st.caption(f"🏠 Địa chỉ: {pt['addr']}")
+                
+                # Chia 2 nút bấm nằm song song tăm tắp bên dưới mỗi địa điểm
+                btn_col1, btn_col2 = st.columns(2)
+                
+                # NÚT FOCUS THẬT: Khi bấm, lưu điểm được chọn vào session_state để ép bản đồ lọc lại
+                if btn_col1.button(f"🎯 Định vị trên Map", key=f"focus_btn_{idx}", use_container_width=True):
+                    st.session_state[focus_key] = pt
+                    st.toast(f"Đang khóa tiêu điểm vào: {pt['name']}!", icon="🚀")
+                    st.rerun()
+                
+                # Nút mở Tab mới dẫn đường
+                google_maps_url = f"https://www.google.com/maps/search/?api=1&query={pt['lat']},{pt['lon']}"
+                btn_col2.link_button("🚙 Đường đi (Maps)", google_maps_url, use_container_width=True)
+
+    # --- CỘT PHẢI: CHỈ CHỨA DUY NHẤT BẢN ĐỒ KHỔ LỚN ---
+    with col_map:
+        st.subheader("🗺️ Bản Đồ Định Vị Vệ Tinh")
+        
+        # Kiểm tra logic Focus: Nếu người dùng đã nhấn chọn một điểm cụ thể
+        if st.session_state[focus_key] is not None:
+            selected_pt = st.session_state[focus_key]
+            st.info(f"📍 Bản đồ đang thu hẹp tiêu cự vào: **{selected_pt['name']}**")
             
-        # 2. Vẽ bản đồ vệ tinh xịn sò của Streamlit
-        st.map(map_data, latitude="lat", longitude="lon", size=30, color="#2E7D32")
-        st.caption("ℹ️ *Dùng chuột cuộn để phóng to/thu nhỏ. Các chấm màu xanh lá cây là vị trí trạm tiếp nhận pin cũ.*")
+            # Chỉ truyền đúng 1 điểm được chọn vào hàm vẽ để ép st.map tự động Focus căn giữa chính xác vào tọa độ này
+            st.map([selected_pt], latitude="lat", longitude="lon", size=60, color="#E65100") 
+        else:
+            st.caption("ℹ️ *Dùng chuột cuộn để phóng to/thu nhỏ. Các chấm màu xanh lá cây đại diện cho vị trí trạm.*")
+            # Nếu chưa chọn gì (hoặc bấm reset), hiển thị toàn bộ danh sách điểm chấm xanh mặc định
+            st.map(map_data, latitude="lat", longitude="lon", size=35, color="#2E7D32")
 
 # ==========================================
 # TAB 3: TÍNH NĂNG MỚI - CẨM NANG CÂU HỎI FAQ
