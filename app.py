@@ -255,13 +255,29 @@ with tab_locations:
             """)
             
     with col_map:
-        st.subheader("🗺️ Bản Đồ Trực Quan Quốc Gia")
-        # Nhúng bản đồ Google Maps của dự án Việt Nam Tái Chế để giao diện trông siêu thực tế
-        map_html = """
-        <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3919.5201944607753!2d106.69916297583796!3d10.771415559283738!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x31752f40a3b090b5%3A0x8878b3fbdf68153c!2zVUJORCBRdeG6rW4gMQ!5e0!3m2!1svi!2svn!4v1700000000000!5m2!1svi!2svn" 
-        width="100%" height="250" style="border:0; border-radius:10px;" allowfullscreen="" loading="lazy"></iframe>
-        """
-        st.components.v1.html(map_html, height=260)
+        st.subheader("🗺️ Bản Đồ Điểm Thu Gom Thực Tế")
+        
+        # 1. Định nghĩa tọa độ thật của các điểm thu gom rác điện tử/pin cũ
+        if city == "TP. Hồ Chí Minh":
+            # Tọa độ các điểm tại TP.HCM (MM Mega Market, UBND Phường 22, Phú Nhuận...)
+            map_data = [
+                {"lat": 10.7963, "lon": 106.7412, "name": "MM Mega Market An Phú"},
+                {"lat": 10.7932, "lon": 106.7135, "name": "UBND Phường 22 - Nguyễn Hữu Cảnh"},
+                {"lat": 10.7998, "lon": 106.6802, "name": "Văn phòng Tiếp công dân Phú Nhuận"},
+                {"lat": 10.7850, "lon": 106.6821, "name": "TT Học tập Cộng đồng Trần Quang Diệu"}
+            ]
+        else:
+            # Tọa độ các điểm tại Hà Nội (Tràng Tiền, Nghĩa Tân, BigC Thăng Long...)
+            map_data = [
+                {"lat": 21.0245, "lon": 105.8568, "name": "Nhà Văn hóa Phường Tràng Tiền"},
+                {"lat": 21.0142, "lon": 105.8012, "name": "Siêu thị Big C Thăng Long"},
+                {"lat": 21.0428, "lon": 105.7958, "name": "UBND Phường Nghĩa Tân"},
+                {"lat": 21.0115, "lon": 105.8192, "name": "Chi cục Bảo vệ Môi trường HN"}
+            ]
+            
+        # 2. Vẽ bản đồ vệ tinh xịn sò của Streamlit
+        st.map(map_data, latitude="lat", longitude="lon", size=30, color="#2E7D32")
+        st.caption("ℹ️ *Dùng chuột cuộn để phóng to/thu nhỏ. Các chấm màu xanh lá cây là vị trí trạm tiếp nhận pin cũ.*")
 
 # ==========================================
 # TAB 3: TÍNH NĂNG MỚI - CẨM NANG CÂU HỎI FAQ
