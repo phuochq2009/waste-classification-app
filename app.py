@@ -275,7 +275,7 @@ with tab_app:
                     # --- BONG BÓNG CHAT USER: ÉP CĂN PHẢI, NỀN XANH TÍM CHUYÊN NGHIỆP ---
                     st.markdown(f"""
                         <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
-                            <div style="background-color: #0078FF; color: white; padding: 10px 14px; 
+                            <div style="background-color: #808080; color: white; padding: 10px 14px; 
                                         border-radius: 18px 18px 0px 18px; max-width: 75%; 
                                         text-align: left; box-shadow: 0px 1px 2px rgba(0,0,0,0.15);">
                                 {message["content"]}
@@ -286,7 +286,7 @@ with tab_app:
                     # --- BONG BÓNG CHAT BOT (ASSISTANT): LỆCH TRÁI, NỀN XÁM NHẠT ---
                     st.markdown(f"""
                         <div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
-                            <div style="background-color: #F0F2F5; color: #1C1E21; padding: 10px 14px; 
+                            <div style="color: white; padding: 10px 14px; 
                                         border-radius: 18px 18px 18px 0px; max-width: 75%; 
                                         text-align: left; box-shadow: 0px 1px 2px rgba(0,0,0,0.1);">
                                 {message["content"]}
