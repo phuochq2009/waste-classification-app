@@ -135,10 +135,10 @@ def ask_gemini_vision(image, cnn_label, cnn_score):
 
     Nhiệm vụ của bạn:
     1. Hãy tự nhìn vào bức ảnh này và nhận diện xem vật thể thực tế CHÍNH XÁC là gì.
-    2. ĐÁNH GIÁ kết quả của mô hình CNN (Nó đoán ĐÚNG hay SAI?). Nếu nó đoán sai, hãy nhẹ nhàng đính chính lại loại rác đúng cho người dùng.
+    2. ĐÁNH GIÁ kết quả của mô hình CNN (Nó đoán ĐÚNG hay SAI?) (thay vì kêu là dự đoán SAI, hãy dùng câu từ nghe cho nó nhẹ nhàng). Nếu nó đoán sai, hãy nhẹ nhàng đính chính lại (nói giảm nói tránh, phân tích tại sao lại sai) loại rác đúng cho người dùng.
     3. Đưa ra hướng xử lý hoặc mẹo tái chế ngắn gọn cho món đồ này.
 
-    Hãy trình bày thật rõ ràng, mạch lạc bằng tiếng Việt, show hết thông tin ra cho người dùng thấy nhé!
+    Hãy trình bày thật ngắn gọn, mạch lạc bằng tiếng Việt, show hết thông tin ra cho người dùng thấy nhé!
     """
     
     try:
@@ -204,21 +204,27 @@ tab_app, tab_locations, tab_faq = st.tabs([
     "📚 Cẩm Nang Câu Hỏi FAQ"
 ])
 
-# ==========================================
+# =========================================================================
 # TAB 1: ỨNG DỤNG CHÍNH (NHẬN DIỆN & CHATBOT)
-# ==========================================
+# =========================================================================
 with tab_app:
-    # Chia giao diện làm 2 cột bằng nhau
+
+    # Chia giao diện chính làm 2 cột lớn bằng nhau
     col_predict, col_chat = st.columns([1, 1], gap="large")
 
-    # --- CỘT TRÁI: CAMERA VÀ UPLOAD ẢNH ---
+    # Khởi tạo 2 biến trung gian ở đầu Tab để truyền dữ liệu từ cột Trái sang cột Phải
+    label, score = None, None
+
+    # ---------------------------------------------------------------------
+    # --- CỘT TRÁI: CAMERA, UPLOAD ẢNH & MÔ HÌNH CNN LOCAL ---
+    # ---------------------------------------------------------------------
     with col_predict:
         st.header("📸 Nhận Diện Thị Giác")
         
         option = st.radio("Chọn phương thức quét ảnh:", ("Tải ảnh lên (Upload)", "Dùng Camera trực tiếp (Live Cam)"), key="input_method")
         
         uploaded_image = None
-        is_valid_file = True  # Biến cờ để kiểm tra file có hợp lệ hay không
+        is_valid_file = True
         
         if option == "Tải ảnh lên (Upload)":
             file_input = st.file_uploader("Chọn một tấm ảnh rác thải (.jpg, .jpeg, .png)")
@@ -227,8 +233,7 @@ with tab_app:
                 file_extension = file_input.name.split(".")[-1].lower()
                 if file_extension not in ["jpg", "jpeg", "png"]:
                     st.error(f"❌ Định dạng file .{file_extension} không được hỗ trợ!")
-                    st.warning("👉 Vui lòng bấm nút (X) trên thanh file để xóa và chọn lại ảnh đúng (.jpg, .jpeg, .png).")
-                    is_valid_file = False  # Đánh dấu file lỗi
+                    is_valid_file = False
                 else:
                     uploaded_image = Image.open(file_input)
         else:
@@ -237,43 +242,21 @@ with tab_app:
                 uploaded_image = Image.open(cam_input)
                 
         if uploaded_image and is_valid_file:
-            st.image(uploaded_image, caption="Ảnh đầu vào", use_container_width=True)
+            st.image(uploaded_image, caption="Hình ảnh đầu vào hệ thống", use_container_width=True)
+            st.markdown("---")
             
-            # --- TẠO 2 Ô KẾT QUẢ SO SÁNH ---
-            st.markdown("### 📊 Kết Quả Phân Tích Song Song")
+            st.subheader("🧠 1. Kết Quả Mô Hình CNN (Local)")
+            label, score = predict_waste(uploaded_image)
             
-            # Khung 1: Hiển thị kết quả của mô hình CNN tự train
-            with st.status("🧠 Mô hình CNN (Local Model) đang tính toán...", expanded=True) as status_cnn:
-                label, score = predict_waste(uploaded_image)
-                if "Organic" in label:
-                    st.success(f"**Dự đoán:** {label} \n\n**Độ tự tin:** {score:.2f}%")
-                    st.caption("💡 *Gợi ý:* Nên gom riêng làm phân bón hữu cơ.")
-                else:
-                    st.warning(f"**Dự đoán:** {label} \n\n**Độ tự tin:** {score:.2f}%")
-                    st.caption("💡 *Gợi ý:* Cần làm sạch và để khô trước khi tái chế.")
-                status_cnn.update(label="✅ Kết quả từ Mô hình CNN tự huấn luyện", state="complete")
-            
-# ---------------------------------------------------------
-            # BƯỚC 2: GỌI GEMINI LÀM TRỌNG TÀI ĐÁNH GIÁ VÀ GIẢI THÍCH
-            # ---------------------------------------------------------
-            st.markdown("#### ✨ 2. Đánh giá & Đính chính từ Siêu AI Gemini")
-            
-            with st.spinner("Trọng tài Gemini đang kiểm tra kết quả của CNN..."):
-                # Gọi hàm truyền đủ 3 tham số
-                gemini_vision_result = ask_gemini_vision(uploaded_image, label, score)
-                
-            # Tạo một khung viền tiêu chuẩn hiển thị trực tiếp ra màn hình (Không dùng st.status nữa)
             with st.container(border=True):
-                # Kiểm tra xem kết quả trả về có phải là thông báo lỗi hệ thống/lỗi bộ lọc an toàn hay không
-                if "sự cố" in gemini_vision_result or "Không nhận được" in gemini_vision_result:
-                    st.error("🚫 **Hệ thống từ chối phân tích ảnh này:**")
-                    st.markdown(gemini_vision_result)
-                    st.caption("💡 *Giải thích:* Google AI có bộ lọc kiểm duyệt cực kỳ nghiêm ngặt. Nếu ảnh chứa nội dung nhạy cảm (như xác động vật, máu me, bạo lực), hệ thống API sẽ tự động chặn đứng để đảm bảo an toàn.")
+                if "Organic" in label:
+                    st.success(f"**Kết quả đoán:** {label}\n\n**Độ tự tin máy:** {score:.2f}%")
                 else:
-                    # Nếu ảnh rác thông thường và Gemini chạy thành công, show toàn bộ chữ ra đây
-                    st.markdown(gemini_vision_result)
+                    st.warning(f"**Kết quả đoán:** {label}\n\n**Độ tự tin máy:** {score:.2f}%")
 
-    # --- CỘT PHẢI: CHATBOT GEMINI MÔI TRƯỜNG ---
+    # ---------------------------------------------------------------------
+    # --- CỘT PHẢI: CHATBOT GEMINI MÔI TRƯỜNG & ĐÍNH CHÍNH ẢNH Ở DƯỚI ---
+    # ---------------------------------------------------------------------
     with col_chat:
         st.header("💬 Trợ Lý Ảo Tư Vấn Môi Trường")
         st.write("Hỏi bất kỳ điều gì về cách phân loại rác, luật môi trường, hoặc mẹo tái chế.")
@@ -283,26 +266,61 @@ with tab_app:
                 {"role": "assistant", "content": "Xin chào! Mình có thể giúp gì cho bạn trong việc phân loại rác hôm nay?"}
             ]
 
-        chat_placeholder = st.container(height=420)
+        # Khung chứa lịch sử chat
+        chat_placeholder = st.container(height=380)
         
         with chat_placeholder:
             for message in st.session_state.messages:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
+                if message["role"] == "user":
+                    # --- BONG BÓNG CHAT USER: ÉP CĂN PHẢI, NỀN XANH TÍM CHUYÊN NGHIỆP ---
+                    st.markdown(f"""
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                            <div style="background-color: #0078FF; color: white; padding: 10px 14px; 
+                                        border-radius: 18px 18px 0px 18px; max-width: 75%; 
+                                        text-align: left; box-shadow: 0px 1px 2px rgba(0,0,0,0.15);">
+                                {message["content"]}
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    # --- BONG BÓNG CHAT BOT (ASSISTANT): LỆCH TRÁI, NỀN XÁM NHẠT ---
+                    st.markdown(f"""
+                        <div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
+                            <div style="background-color: #F0F2F5; color: #1C1E21; padding: 10px 14px; 
+                                        border-radius: 18px 18px 18px 0px; max-width: 75%; 
+                                        text-align: left; box-shadow: 0px 1px 2px rgba(0,0,0,0.1);">
+                                {message["content"]}
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
-        if user_input := st.chat_input("Nhập câu hỏi của bạn (ví dụ: Pin cũ thì vứt ở đâu?)..."):
-            with chat_placeholder:
-                with st.chat_message("user"):
-                    st.markdown(user_input)
+        # Ô nhập câu hỏi chat ghim ở dưới khung chatbot
+        if user_input := st.chat_input("Nhập câu hỏi của bạn..."):
+            # Thêm tin nhắn user vào bộ nhớ và ép giao diện cập nhật ngay
             st.session_state.messages.append({"role": "user", "content": user_input})
             
-            with chat_placeholder:
-                with st.chat_message("assistant"):
-                    with st.spinner("Đang suy nghĩ..."):
-                        response = ask_bot(user_input)
-                        st.markdown(response)
+            # Gọi API lấy câu trả lời từ bot
+            try:
+                response = ask_bot(user_input)
+            except Exception as e:
+                response = "Xin lỗi, hệ thống AI đang bận hoặc gặp sự cố xử lý câu hỏi này. Bạn vui lòng thử lại nhé!"
+                
             st.session_state.messages.append({"role": "assistant", "content": response})
             st.rerun()
+
+        # --- PHẦN ĐÍNH CHÍNH CỦA GEMINI NẰM DƯỚI CÙNG ---
+        if uploaded_image and is_valid_file and label is not None:
+            st.markdown("---")
+            st.subheader("✨ 2. Trọng tài Gemini 2.5 Đính Chính")
+            
+            with st.spinner("Gemini đang soi ảnh bên trái để check kết quả của CNN..."):
+                gemini_vision_result = ask_gemini_vision(uploaded_image, label, score)
+            
+            with st.container(border=True):
+                if "BỘ LỌC AN TOÀN" in gemini_vision_result or "sự cố" in gemini_vision_result or "429" in gemini_vision_result:
+                    st.error(gemini_vision_result)
+                else:
+                    st.markdown(gemini_vision_result)
 
 # ==========================================
 # TAB 2: TÍNH NĂNG MỚI - ĐIỂM THU GOM RÁC ĐỘC HẠI
